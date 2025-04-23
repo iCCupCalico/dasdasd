@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление Telegram ботом</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+        }
+        .stats-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-running {
+            background-color: var(--bs-success);
+        }
+        .status-stopped {
+            background-color: var(--bs-danger);
+        }
+        pre {
+            background-color: var(--bs-dark);
+            padding: 15px;
+            border-radius: 5px;
+            color: var(--bs-light);
+            overflow-x: auto;
+        }
+        .admin-link {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+        }
+    </style>
+</head>
+<body data-bs-theme="dark">
+    <div class="container">
+        <h1 class="mb-4">Telegram бот для статистики игроков DotA на iccup.com</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Статус бота</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>
+                            <strong>Токен Telegram:</strong> 
+                            <span id="token-status" class="badge bg-{{ 'success' if token_status == 'настроен' else 'danger' }}">
+                                {{ token_status }}
+                            </span>
+                        </p>
+                        <p>
+                            <strong>Состояние бота:</strong> 
+                            <span class="status-indicator {{ 'status-running' if bot_status == 'Запущен' else 'status-stopped' }}"></span>
+                            <span id="bot-status">{{ bot_status }}</span>
+                        </p>
+                        <div class="d-flex gap-2">
+                            <button id="start-bot" class="btn btn-success" {% if bot_status == 'Запущен' %}disabled{% endif %}>Запустить бота</button>
+                            <button id="stop-bot" class="btn btn-danger" {% if bot_status == 'Не запущен' %}disabled{% endif %}>Остановить бота</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Инструкции</h5>
+                    </div>
+                    <div class="card-body">
+                        <ol>
+                            <li>Убедитесь, что токен Telegram установлен и имеет правильный формат</li>
+                            <li>Нажмите кнопку "Запустить бота" для активации бота</li>
+                            <li>В Telegram, найдите бота и введите следующие команды:
+                                <ul>
+                                    <li><code>/start</code> - начать работу с ботом</li>
+                                    <li><code>/stats</code> - запросить статистику игрока (вас попросят ввести никнейм)</li>
+                                    <li><code>/stats никнейм</code> - напрямую запросить статистику для указанного никнейма</li>
+                                </ul>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Тест скрейпера</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="scraper-form" class="mb-3">
+                            <div class="input-group">
+                                <input type="text" id="nickname" class="form-control" placeholder="Введите никнейм игрока" required>
+                                <button type="submit" class="btn btn-primary">Проверить</button>
+                            </div>
+                        </form>
+                        <div class="alert alert-info" role="alert">
+                            Здесь вы можете проверить работу скрейпера без использования Telegram бота.
+                        </div>
+                        <div id="scraper-result" class="stats-container d-none">
+                            <h6>Результат:</h6>
+                            <pre id="stats-data"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <a href="{{ url_for('admin_login') }}" class="btn btn-primary admin-link">
+        <i class="bi bi-shield-lock"></i> Административная панель
+    </a>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Обработчики событий для кнопок управления ботом
+            document.getElementById('start-bot').addEventListener('click', function() {
+                fetch('/start_bot', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            document.getElementById('bot-status').textContent = 'Запущен';
+                            document.querySelector('.status-indicator').classList.remove('status-stopped');
+                            document.querySelector('.status-indicator').classList.add('status-running');
+                            document.getElementById('start-bot').setAttribute('disabled', 'disabled');
+                            document.getElementById('stop-bot').removeAttribute('disabled');
+                        }
+                        alert(data.message);
+                    })
+                    .catch(error => {
+                        console.error('Ошибка:', error);
+                        alert('Произошла ошибка при запуске бота');
+                    });
+            });
+
+            document.getElementById('stop-bot').addEventListener('click', function() {
+                fetch('/stop_bot', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            document.getElementById('bot-status').textContent = 'Не запущен';
+                            document.querySelector('.status-indicator').classList.remove('status-running');
+                            document.querySelector('.status-indicator').classList.add('status-stopped');
+                            document.getElementById('stop-bot').setAttribute('disabled', 'disabled');
+                            document.getElementById('start-bot').removeAttribute('disabled');
+                        }
+                        alert(data.message);
+                    })
+                    .catch(error => {
+                        console.error('Ошибка:', error);
+                        alert('Произошла ошибка при остановке бота');
+                    });
+            });
+
+            // Обработчик для формы тестирования скрейпера
+            document.getElementById('scraper-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const nickname = document.getElementById('nickname').value;
+                if (!nickname) {
+                    alert('Введите никнейм игрока');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('nickname', nickname);
+                
+                fetch('/test_scraper', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const resultElement = document.getElementById('scraper-result');
+                    const statsDataElement = document.getElementById('stats-data');
+                    
+                    resultElement.classList.remove('d-none');
+                    
+                    if (data.status === 'success') {
+                        statsDataElement.textContent = JSON.stringify(data.data, null, 2);
+                    } else {
+                        statsDataElement.textContent = data.message;
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Произошла ошибка при получении статистики');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
